@@ -1,0 +1,328 @@
+#include <iostream>
+#include <iomanip>
+#include "sodium.h"
+#include <fstream>
+#include <string>
+#include <stdio.h>
+
+void write_contents_to_file(const char* file_name, unsigned char* contents, size_t content_size) {
+    FILE* f_pointer;
+    fopen_s(&f_pointer, content_size, "wb");
+    fwrite(contents, 1, crypto_stream_chacha20_KEYBYTES, f_pointer);
+    fclose(f_pointer);
+}
+
+void generar_llave_cifrado(const char* nombre_clave_cifrado) {
+    unsigned char key[crypto_stream_chacha20_KEYBYTES];
+    crypto_secretbox_keygen(key);
+
+    // Escribimos llave de cifrado con el nombre especificado
+    
+
+    std::cout << "llave: " << key << std::endl;
+}
+
+void cifrar_archivo(const char* nombre_del_archivo_a_cifrar, const char* nombre_del_archivo_de_destino_cifrado, const char* nombre_clave_cifrado) {
+    unsigned char key[crypto_stream_chacha20_KEYBYTES];
+    FILE* f_cipher_key;
+    fopen_s(&f_cipher_key, nombre_clave_cifrado, "rb");
+    fread(key, 1, crypto_sign_SECRETKEYBYTES, f_cipher_key);
+    fclose(f_cipher_key);
+
+    unsigned char  buf_in[1024];
+    unsigned char  buf_out[1024];
+    FILE* fp_target, * fp_source;
+    size_t rlen;
+    int eof;
+    fopen_s(&fp_source, nombre_del_archivo_a_cifrar, "rb");
+    fopen_s(&fp_target, nombre_del_archivo_de_destino_cifrado, "wb");
+    // Cargamos contenido del archivo en memoria
+    //std::ifstream input_file(nombre_del_archivo_a_cifrar, std::ios::binary);
+   
+    if (fp_source && feof(fp_source) || !fp_source) {
+        std::cout << "El archivo no existe o estA vacIo." << std::endl << std::endl;
+        fclose(fp_source);
+        fclose(fp_target);
+        return;
+    }
+    
+    unsigned char nonce[crypto_stream_chacha20_NONCEBYTES];
+    randombytes_buf(nonce, sizeof nonce); 
+
+    fwrite(nonce, 1, sizeof nonce, fp_target);
+    do {
+        rlen = fread(buf_in, 1, sizeof buf_in, fp_source);
+        eof = feof(fp_source);
+        crypto_stream_chacha20_xor(buf_out, buf_in, rlen, nonce, key);
+        fwrite(buf_out, 1, (size_t)rlen, fp_target);
+    } while (!eof);
+    fclose(fp_target);
+    fclose(fp_source);
+
+    std::cout << std::endl << std::endl << "Archivo encriptado satisfactoriamente." << std::endl << std:: endl;
+    
+}
+
+void descifrar_archivo(const char* nombre_del_archivo_a_descifrar, const char* nombre_del_archivo_de_destino_descifrado, const char* nombre_clave_cifrado) {
+    unsigned char key[crypto_stream_chacha20_KEYBYTES];
+    FILE* f_cipher_key;
+    fopen_s(&f_cipher_key, nombre_clave_cifrado, "rb");
+    fread(key, 1, crypto_sign_SECRETKEYBYTES, f_cipher_key);
+    fclose(f_cipher_key);
+
+    unsigned char  buf_in[1024];
+    unsigned char  buf_out[1024];
+    FILE* fp_target, * fp_source;
+    size_t         rlen;
+    int            eof;
+    fopen_s(&fp_source, nombre_del_archivo_a_descifrar, "rb");
+    fopen_s(&fp_target, nombre_del_archivo_de_destino_descifrado, "wb");
+    // Cargamos contenido del archivo en memoria
+    //std::ifstream input_file(nombre_del_archivo_a_cifrar, std::ios::binary);
+
+    if (fp_source && feof(fp_source) || !fp_source) {
+        std::cout << "El archivo no existe o estA vacIo." << std::endl << std::endl;
+        return;
+    }
+
+    unsigned char nonce[crypto_stream_chacha20_NONCEBYTES];
+    fread(nonce, 1, sizeof nonce, fp_source);
+    do {
+        rlen = fread(buf_in, 1, sizeof buf_in, fp_source);
+        eof = feof(fp_source);
+        crypto_stream_chacha20_xor(buf_out, buf_in, rlen, nonce, key);
+        fwrite(buf_out, 1, (size_t)rlen, fp_target);
+    } while (!eof);
+    fclose(fp_target);
+    fclose(fp_source);
+
+    std::cout << std::endl << std::endl << "Archivo desencriptado satisfactoriamente." << std::endl << std::endl;
+}
+
+void generar_llave_par(const char* nombre_del_archivo) {
+    unsigned char public_key[crypto_sign_PUBLICKEYBYTES];
+    unsigned char private_key[crypto_sign_SECRETKEYBYTES];
+    crypto_sign_keypair(public_key, private_key);
+    std::cout << std::endl << "-------------PUBLIC---------------" << std::endl;
+    for (int i = 0; i < crypto_sign_PUBLICKEYBYTES; i++) {
+        std::cout << public_key[i];
+    }
+    std::cout << std::endl << "------------PRIVATE----------------" << std::endl;
+    for (int i = 0; i < crypto_sign_SECRETKEYBYTES; i++) {
+        std::cout << private_key[i];
+    }
+    std::cout << std::endl << "-----------------------------------------" << std::endl;
+    std::cout << private_key << " <<private key" << std::endl;
+    std::cout << public_key << " <<public key" << std::endl;
+
+    // Escribimos llave privada con private_ al inicio
+    FILE* f_private_key;
+    std::string private_("private_");
+    std::string p_file_name(nombre_del_archivo);
+    fopen_s(&f_private_key, (private_ + p_file_name).c_str(), "wb");
+    fwrite(private_key, 1, crypto_sign_SECRETKEYBYTES, f_private_key);
+    fclose(f_private_key);
+
+    // Escribimos llave publica con public_ al inicio
+    FILE* f_public_key;
+    std::string public_("public_");
+    fopen_s(&f_public_key, (public_ + p_file_name).c_str(), "wb");
+    fwrite(public_key, 1, crypto_sign_PUBLICKEYBYTES, f_public_key);
+    fclose(f_public_key);
+}
+
+void recuperar_llave(const char* nombre_del_archivo) {
+
+}
+
+void firmar_documento(const char* nombre_documento, const char* nombre_llave_privada, const char* nombre_archivo_a_guardar_firmado) {
+    // Leemos el contenido del archivo a firmar
+    FILE* f_unsigned_doc;
+    fopen_s(&f_unsigned_doc, nombre_documento, "rb");
+    fseek(f_unsigned_doc, 0, SEEK_END);
+    long fsize = ftell(f_unsigned_doc);
+    fseek(f_unsigned_doc, 0, SEEK_SET);
+    unsigned char* unsigned_doc = new unsigned char[fsize];
+    fread(unsigned_doc, 1, fsize, f_unsigned_doc);
+    fclose(f_unsigned_doc);
+
+    std::cout << fsize << " tamanio doc sin firmar" << std::endl;
+
+    // Leemos el contenido de la llave privada para firmar el documento
+    FILE* f_private_key;
+    fopen_s(&f_private_key, nombre_llave_privada, "rb");
+    unsigned char private_key[crypto_sign_SECRETKEYBYTES];
+    fread(private_key, 1, crypto_sign_SECRETKEYBYTES, f_private_key);
+    fclose(f_private_key);
+
+    std::cout << std::endl << "------------PRIVATE----------------" << std::endl;
+    for (int i = 0; i < crypto_sign_SECRETKEYBYTES; i++) {
+        std::cout << private_key[i];
+    }
+    std::cout << std::endl << "------------------------------------" << std::endl;
+
+    unsigned char* signed_message = new unsigned char[crypto_sign_BYTES + fsize];
+    unsigned long long signed_message_len;
+    crypto_sign(signed_message, &signed_message_len, unsigned_doc, fsize, private_key);
+    std::cout << signed_message_len << " <<signed len" << std::endl;
+    std::cout << crypto_sign_BYTES + fsize << " << signed len match" << std::endl;
+
+    // Escribimos el mensaje firmado en el archivo indicado
+    FILE* f_signed_doc;
+    fopen_s(&f_signed_doc, nombre_archivo_a_guardar_firmado, "wb");
+    fwrite(signed_message, 1, signed_message_len, f_signed_doc);
+    fclose(f_signed_doc);
+}
+
+void verificar_firma_documento(const char* nombre_documento_firmado, const char* nombre_llave_publica) {
+    // Leemos el contenido del archivo firmado
+    FILE* f_signed_doc;
+    fopen_s(&f_signed_doc, nombre_documento_firmado, "rb");
+    fseek(f_signed_doc, 0, SEEK_END);
+    long fsize = ftell(f_signed_doc);
+    fseek(f_signed_doc, 0, SEEK_SET);
+    unsigned char* signed_doc = new unsigned char[fsize];
+    fread(signed_doc, 1, fsize, f_signed_doc);
+    fclose(f_signed_doc);
+    std::cout << fsize << " tamanio doc firmado" << std::endl;
+
+    // Leemos el contenido de la llave pública correspondiente a la llave privada con la que se firmó el documento
+    FILE* f_private_key;
+    fopen_s(&f_private_key, nombre_llave_publica, "rb");
+    unsigned char public_key[crypto_sign_PUBLICKEYBYTES];
+    fread(public_key, 1, crypto_sign_PUBLICKEYBYTES, f_private_key);
+    fclose(f_private_key);
+    std::cout << std::endl << "------------PUBLIC----------------" << std::endl;
+    for (int i = 0; i < crypto_sign_PUBLICKEYBYTES; i++) {
+        std::cout << public_key[i];
+    }
+    std::cout << std::endl << "------------------------------------" << std::endl;
+
+    unsigned char* unsigned_message = new unsigned char[fsize - crypto_sign_BYTES];
+    if (crypto_sign_open(unsigned_message, NULL, signed_doc, fsize, public_key) != 0) {
+        std::cout << sizeof unsigned_message << " tamanio desfirmado" << std::endl;
+        std::cout << "Invalid signature!" << std::endl;
+        return;
+    }
+    std::cout << "Valid signature!" << std::endl;
+    return;
+}
+
+
+int main()
+{
+    // Checamos que libsodium se cargue correctamente
+    if (sodium_init() < 0) {
+        std::cout << "No se pudo inicializar libsodium correctamente.";
+        return -1;
+    }
+
+    char option = '*';
+    do {
+        system("cls");
+        std::cout << "Operaciones disponibles:" << std::endl;
+        std::cout << "\t1. GeneraciOn y recuperaciOn de claves." << std::endl;
+        std::cout << "\t2. Cifrado de archivos." << std::endl;
+        std::cout << "\t3. Descifrado de archivos." << std::endl;
+        std::cout << "\t4. Firma de archivos." << std::endl;
+        std::cout << "\t5. VerificaciOn de firma de archivos." << std::endl;
+        std::cout << "Introduce la opciOn deseada: ";
+        std::string input;
+        std::getline(std::cin, input);
+        if (input.empty()) {
+            continue;
+        }
+        option = input.at(0);
+        system("cls");
+        switch (option) {
+        case '1': {
+            std::cout << "¿QuE deseas hacer?:" << std::endl;
+            std::cout << "\t1. Generar un nuevo par de clave privada y pUblica." << std::endl;
+            std::cout << "\t2. Recuperar una clave pUblica a partir de una clave privada." << std::endl;
+            std::cout << "\t3. Generar una nueva clave de cifrado de archivos." << std::endl;
+            std::cout << "Introduce la opciOn deseada: ";
+            std::string key_input;
+            std::getline(std::cin, key_input);
+            char key_option = key_input.at(0);
+            if (key_option != '1' && key_option != '2' && key_option != '3') {
+                break;
+            }
+
+            std::string file_name;
+            if (key_option == '1') {
+                std::cout << std::endl << "Introduce el nombre para tus claves: ";
+                std::getline(std::cin, file_name);
+                generar_llave_par(file_name.c_str());
+            } else if (key_option == '2') {
+                std::cout << std::endl << "Introduce el nombre completo de tu clave privada: ";
+                std::getline(std::cin, file_name);
+                recuperar_llave(file_name.c_str());
+            } else if (key_option == '3') {
+                std::cout << std::endl << "Introduce el nombre para generar la clave de cifrado: ";
+                std::getline(std::cin, file_name);
+                generar_llave_cifrado(file_name.c_str());
+            }
+            break;
+        }
+        case '2': {
+            std::string file_name_str;
+            std::cout << "Introduce el nombre del archivo a cifrar: ";
+            std::getline(std::cin, file_name_str);
+            std::string ciphered_file_name_str;
+            std::cout << "Introduce el nombre del archivo de destino (archivo a crear con el contenido cifrado): ";
+            std::getline(std::cin, ciphered_file_name_str);
+            std::string cipher_key_file_name_str;
+            std::cout << "Introduce el nombre del archivo con tu clave de cifrado: ";
+            std::getline(std::cin, cipher_key_file_name_str);
+            std::cout << std::endl;
+            //encrypt((char*)ciphered_file_name_str.c_str(), (char*)file_name_str.c_str(), key);
+            cifrar_archivo(file_name_str.c_str(), ciphered_file_name_str.c_str(), cipher_key_file_name_str.c_str());
+            break;
+        }
+        case '3': {
+            std::string file_name_str;
+            std::cout << "Introduce el nombre del archivo a descifrar: ";
+            std::getline(std::cin, file_name_str);
+            std::string deciphered_file_name_str;
+            std::cout << "Introduce el nombre del archivo de destino (archivo a crear con el contenido descifrado): ";
+            std::getline(std::cin, deciphered_file_name_str);
+            std::string cipher_key_file_name_str;
+            std::cout << "Introduce el nombre del archivo con tu clave de cifrado: ";
+            std::getline(std::cin, cipher_key_file_name_str);
+            std::cout << std::endl;
+            //decrypt((char*)deciphered_file_name_str.c_str(), (char*)file_name_str.c_str(), key);
+            descifrar_archivo(file_name_str.c_str(), deciphered_file_name_str.c_str(), cipher_key_file_name_str.c_str());
+            break;
+        }
+        case '4': {
+            std::string file_to_sign_str;
+            std::cout << "Introduce el nombre del archivo a firmar: ";
+            std::getline(std::cin, file_to_sign_str);
+            std::string private_key_name_str;
+            std::cout << "Introduce el nombre de la llave privada (empieza con private_): ";
+            std::getline(std::cin, private_key_name_str);
+            std::string signed_name_str;
+            std::cout << "Introduce el nombre del documento firmado a guardar: ";
+            std::getline(std::cin, signed_name_str);
+            std::cout << std::endl;
+            firmar_documento(file_to_sign_str.c_str(), private_key_name_str.c_str(), signed_name_str.c_str());
+            break;
+        }
+        case '5': {
+            std::string signed_file_to_verify_str;
+            std::cout << "Introduce el nombre del archivo firmado: ";
+            std::getline(std::cin, signed_file_to_verify_str);
+            std::string public_key_name_str;
+            std::cout << "Introduce el nombre de la llave publica (empieza con public_): ";
+            std::getline(std::cin, public_key_name_str);
+            std::cout << std::endl;
+            verificar_firma_documento(signed_file_to_verify_str.c_str(), public_key_name_str.c_str());
+            break;
+        }
+        default:
+            break;
+        }
+        system("pause");
+    } while (option != '0');
+    return 0;
+}
